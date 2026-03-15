@@ -52,7 +52,8 @@ src_files = [
   'src/app/main.cpp',
   'src/platform/Utils.cpp',
   'src/platform/ManagementFactory.cpp',
-  'src/platform/ManagementServer.cpp'
+  'src/platform/ManagementServer.cpp',
+  'src/platform/handlers/CreateRaceHandler.cpp'
 ]
 
 include_dirs = [
