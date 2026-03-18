@@ -57,7 +57,7 @@ void ManagementServer::initialize(Poco::Util::Application & self)
      * если локально хочется запустить, то надо будет определить переменные окружения необходимые
      */
 
-    s3Client_ = RGT::Devkit::connectToS3("admin_admin", "admin_admin", "localhost:9000", "", Aws::Http::Scheme::HTTPS, false, false);
+    s3Client_ = RGT::Devkit::connectToS3("admin_admin", "admin_admin", "minio:9000", "", Aws::Http::Scheme::HTTPS, false, false);
 
     std::cout << "Сервачок запущен" << std::endl;
 }
