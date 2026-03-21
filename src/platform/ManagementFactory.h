@@ -20,7 +20,10 @@ public:
 
     ManagementFactory(Poco::Data::SessionPool & sessionPool, RedisClientObjectPool & redisPool, 
         Aws::S3::S3Client & s3Client, Poco::Util::LayeredConfiguration & cfg) 
-        : sessionPool_(sessionPool), redisPool_(redisPool), s3Client_{s3Client}, cfg_(cfg)
+        : sessionPool_(sessionPool)
+        , redisPool_(redisPool)
+        , s3Client_{s3Client}
+        , cfg_(cfg)
     {
     }
 

@@ -17,6 +17,6 @@ COPY . ./app
 WORKDIR /app
 
 RUN meson build
-RUN meson compile -C build -j 12
+RUN meson compile -C build -j 3
 
 CMD ["./build/rgt-management"]

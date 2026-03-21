@@ -5,7 +5,10 @@
 #include <Poco/Net/ServerSocket.h>
 #include <Poco/Net/HTTPServer.h>
 
-#include <rgt/devkit/Connections.h>
+#include <rgt/devkit/subsystems/S3Subsystem.h>
+#include <rgt/devkit/subsystems/PsqlSubsystem.h>
+#include <rgt/devkit/subsystems/RedisSubsystem.h>
+#include <rgt/devkit/General.h>
 
 #include <aws/core/Aws.h>
 
@@ -15,61 +18,18 @@ namespace RGT::Management
 void ManagementServer::initialize(Poco::Util::Application & self)
 {
     loadConfiguration();
+
+    RGT::Devkit::readDotEnv();
+
+    Poco::Util::Application::addSubsystem(new RGT::Devkit::Subsystems::PsqlSubsystem());
+    Poco::Util::Application::addSubsystem(new RGT::Devkit::Subsystems::S3Subsystem());
+    Poco::Util::Application::addSubsystem(new RGT::Devkit::Subsystems::RedisSubsystem());
+
     ServerApplication::initialize(self);
-
-    Poco::Data::PostgreSQL::Connector::registerConnector();
-
-    Aws::InitAPI(sdkOptions_);
-
-    const Poco::Util::LayeredConfiguration & cfg = ManagementServer::config();
-
-    sessionPool_ = RGT::Devkit::connectToPsql(cfg.getString("psql.host"), cfg.getString("psql.port"),
-        cfg.getString("psql.dbname"), cfg.getString("psql.user"),cfg.getString("psql.password"),
-        cfg.getUInt16("psql.min_sessions"), cfg.getUInt16("psql.max_sessions"));
-
-    redisPool_ = RGT::Devkit::connectToRedis(cfg.getString("redis.host"), cfg.getString("redis.port"),
-        cfg.getUInt16("redis.min_sessions"), cfg.getUInt16("redis.max_sessions"));
-
-    // // TODO Залогировать в месте, где перехватывается ошибка
-    // std::string accessKeyId = Poco::Environment::get("AWS_ACCESS_KEY_ID");
-    
-    // // TODO залогировать в месте, где перехватываестя ошибка
-    // std::string secretKey = Poco::Environment::get("AWS_SECRET_ACCESS_KEY");
-
-    // std::string host; 
-    // try {
-    //     host = Poco::Environment::get("MINIO_HOST");
-    // }
-    // catch (...)
-    // {
-    //     // TODO залогировать в месте, где перехватываестя ошибка
-    //     host = cfg.getString("minio.host");
-    // }
-
-    /**
-     * по поводу переменных окружения:
-     * 
-     * с докером все понятно, но если я хочу запустить микросервис локально?
-     * 1. добавление .env - глупость, потому что приложение из контейнера не будет понимать
-     * откуда ему читать данные, из этого .env или из переменных окружения, которые мы через
-     * докер компоуз прокинули
-     * 
-     * если локально хочется запустить, то надо будет определить переменные окружения необходимые
-     */
-
-    s3Client_ = RGT::Devkit::connectToS3("admin_admin", "admin_admin", "minio:9000", "", Aws::Http::Scheme::HTTPS, false, false);
-
-    std::cout << "Сервачок запущен" << std::endl;
 }
 
 void ManagementServer::uninitialize()
-{
-    Poco::Data::PostgreSQL::Connector::unregisterConnector();
-
-    Aws::ShutdownAPI(sdkOptions_);
-
-    ServerApplication::uninitialize();
-}
+{ ServerApplication::uninitialize(); }
 
 int ManagementServer::main(const std::vector<std::string>&)
 try
@@ -77,10 +37,17 @@ try
     Poco::Util::LayeredConfiguration & cfg = ManagementServer::config();
 
     Poco::Net::ServerSocket svs(cfg.getUInt16("server.port"));
+
+    auto & psqlSubsystem = Poco::Util::Application::getSubsystem<Devkit::Subsystems::PsqlSubsystem>();
+    auto & s3Subsystem = Poco::Util::Application::getSubsystem<Devkit::Subsystems::S3Subsystem>();
+    auto & redisSubsystem = Poco::Util::Application::getSubsystem<Devkit::Subsystems::RedisSubsystem>();
     
     Poco::Net::HTTPServer srv
     (
-        new Management::ManagementFactory(*sessionPool_, *redisPool_, *s3Client_, cfg), 
+        new Management::ManagementFactory
+        (
+            psqlSubsystem.getPool(), redisSubsystem.getPool(), s3Subsystem.getS3Client(), cfg
+        ), 
         svs, 
         new Poco::Net::HTTPServerParams
     );

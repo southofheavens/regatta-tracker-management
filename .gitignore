@@ -3,3 +3,5 @@
 subprojects/*
 
 .DS_Store
+
+.env
