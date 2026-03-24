@@ -1,21 +1,26 @@
-#ifndef __CREATE_RACE_HANDLER_H__
-#define __CREATE_RACE_HANDLER_H__
+#ifndef __START_RACE_HANDLER_H__
+#define __START_RACE_HANDLER_H__
 
 #include <rgt/devkit/HTTPRequestHandler.h>
 
 #include <Poco/Data/SessionPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
+#include <Poco/ObjectPool.h>
+#include <Poco/Redis/Client.h>
 
 #include <any>
 
 namespace RGT::Management
 {
 
-class CreateRaceHandler : public RGT::Devkit::HTTPRequestHandler
+class StartRaceHandler : public RGT::Devkit::HTTPRequestHandler
 {
 public:
-    CreateRaceHandler(Poco::Data::SessionPool & sessionPool) 
+    using RedisClientObjectPool = Poco::ObjectPool<Poco::Redis::Client, Poco::Redis::Client::Ptr>;
+
+    StartRaceHandler(Poco::Data::SessionPool & sessionPool, RedisClientObjectPool & redisPool) 
         : sessionPool_{sessionPool}
+        , redisPool_{redisPool}
     {
     }
 
@@ -31,13 +36,13 @@ private:
     {
         RGT::Devkit::JWTPayload tokenPayload;
 
-        std::vector<uint64_t> participants;
-        std::vector<uint64_t> judges;
+        uint64_t raceId;
     };
 
-    Poco::Data::SessionPool          & sessionPool_;
+    Poco::Data::SessionPool & sessionPool_;
+    RedisClientObjectPool   & redisPool_;
 };
 
 } // namespace RGT::Management
 
-#endif // __CREATE_RACE_HANDLER_H__
+#endif // __START_RACE_HANDLER_H__

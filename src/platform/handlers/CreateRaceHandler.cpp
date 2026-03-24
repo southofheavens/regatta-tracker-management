@@ -169,11 +169,24 @@ void CreateRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request
         session << "INSERT INTO races DEFAULT VALUES RETURNING id", 
             Poco::Data::Keywords::into(raceId), Poco::Data::Keywords::now;
 
-        for (uint64_t id : checkingUniqueIds) 
+        static const std::string participantString = "Participant";
+        static const std::string judgeString = "Judge";
+
+        for (uint64_t id : requiredPayload.participants) 
         {
-            session << "INSERT INTO participations (user_id, race_id) VALUES ($1, $2)",
+            session << "INSERT INTO participations (user_id, race_id, role) VALUES ($1, $2, $3)",
                 Poco::Data::Keywords::use(id), 
-                Poco::Data::Keywords::use(raceId), 
+                Poco::Data::Keywords::use(raceId),
+                Poco::Data::Keywords::use(const_cast<std::string&>(participantString) /* осуждаю себя за const_cast */),
+                Poco::Data::Keywords::now;
+        }
+
+        for (uint64_t id : requiredPayload.judges) 
+        {
+            session << "INSERT INTO participations (user_id, race_id, role) VALUES ($1, $2, $3)",
+                Poco::Data::Keywords::use(id), 
+                Poco::Data::Keywords::use(raceId),
+                Poco::Data::Keywords::use(const_cast<std::string&>(judgeString) /* осуждаю себя за const_cast */),
                 Poco::Data::Keywords::now;
         }
     }

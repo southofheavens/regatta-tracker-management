@@ -10,6 +10,8 @@
 #include <fstream>
 
 #include <handlers/CreateRaceHandler.h>
+#include <handlers/StartRaceHandler.h>
+#include <handlers/EndRaceHandler.h>
 
 namespace RGT::Management
 {
@@ -91,14 +93,15 @@ Poco::Net::HTTPRequestHandler * ManagementFactory::createRequestHandler(const Po
     if (method == "POST")
     {
         if (uri == "/create_race") {
-            return new CreateRaceHandler(sessionPool_, cfg_);
+            return new CreateRaceHandler(sessionPool_);
+        }
+        else if (uri == "/start_race") {
+            return new StartRaceHandler(sessionPool_, redisPool_);
+        }
+        else if (uri == "/end_race") {
+            return new EndRaceHandler(sessionPool_, redisPool_, s3Client_);
         }
     }
-    
-    // if (method == "POST" && uri == "/upload")
-    // {
-    //     return new UploadHandler(s3Client_);
-    // }
 }
 
 } // namespace RGT::Management
