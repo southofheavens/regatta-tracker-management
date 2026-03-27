@@ -1,5 +1,6 @@
 FROM alpine:3.23.3
 
+# Устанавливаем зависимости для сборки
 RUN apk add --no-cache \
     openssl-dev \
     pkgconfig \
@@ -10,7 +11,35 @@ RUN apk add --no-cache \
     libsodium-dev \
     gtest-dev \
     aws-sdk-cpp-dev \
-    aws-crt-cpp-dev 
+    aws-crt-cpp-dev \
+    boost-dev \
+    cmake
+
+# 2. Собираем rabbitmq-c v0.15.0 (с static + shared)
+RUN git clone --branch v0.15.0 --depth 1 https://github.com/alanxz/rabbitmq-c.git /tmp/rabbitmq-c && \
+    cd /tmp/rabbitmq-c && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DBUILD_SHARED_LIBS=ON \
+        -DBUILD_STATIC_LIBS=ON && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/rabbitmq-c
+
+# 3. Собираем SimpleAmqpClient против собранной rabbitmq-c
+RUN git clone --depth 1 https://github.com/alanxz/SimpleAmqpClient.git /tmp/SimpleAmqpClient && \
+    cd /tmp/SimpleAmqpClient && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_CXX_STANDARD=20 \
+        -DBUILD_SHARED_LIBS=ON && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/SimpleAmqpClient
 
 COPY . ./app
 

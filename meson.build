@@ -15,6 +15,7 @@ poco_data = cpp.find_library('PocoData', required: false)
 poco_data_postgresql = cpp.find_library('PocoDataPostgreSQL', required: false)
 poco_jwt = cpp.find_library('PocoJWT', required: true)
 poco_redis = cpp.find_library('PocoRedis', required: true)
+poco_xml = cpp.find_library('PocoXML', required: true)
 
 pq = cpp.find_library('pq', required: true)
 sodium = cpp.find_library('sodium', required: true)
@@ -24,6 +25,9 @@ crypto = cpp.find_library('crypto', required: true)
 aws_core = cpp.find_library('aws-cpp-sdk-core', required: true)
 aws_s3 = cpp.find_library('aws-cpp-sdk-s3', required: true)
 
+rabbitmq = cpp.find_library('rabbitmq', required: true)
+simpleamqpclient = cpp.find_library('SimpleAmqpClient', required: true)
+
 all_deps = [
   poco_foundation,
   poco_util,
@@ -31,13 +35,16 @@ all_deps = [
   poco_json,
   poco_jwt,
   poco_redis,
+  poco_xml,
   pq,
   sodium,
   ssl,
   crypto,
   devkit_dep,
   aws_core,
-  aws_s3
+  aws_s3,
+  rabbitmq,
+  simpleamqpclient
 ]
 
 if poco_data.found()

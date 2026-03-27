@@ -8,6 +8,8 @@
 #include <Poco/Redis/Client.h>
 #include <Poco/Net/HTTPServerRequest.h>
 
+#include <SimpleAmqpClient/SimpleAmqpClient.h>
+
 namespace Aws::S3 { class S3Client; } // namespace Aws::S3
 
 namespace RGT::Management
@@ -19,11 +21,13 @@ public:
     using RedisClientObjectPool = Poco::ObjectPool<Poco::Redis::Client, Poco::Redis::Client::Ptr>;
 
     ManagementFactory(Poco::Data::SessionPool & sessionPool, RedisClientObjectPool & redisPool, 
-        Aws::S3::S3Client & s3Client, Poco::Util::LayeredConfiguration & cfg) 
+        Aws::S3::S3Client & s3Client, Poco::Util::LayeredConfiguration & cfg, 
+        AmqpClient::Channel & channel) 
         : sessionPool_(sessionPool)
         , redisPool_(redisPool)
         , s3Client_{s3Client}
         , cfg_(cfg)
+        , myChannel_(channel)
     {
     }
 
@@ -34,6 +38,7 @@ private:
     RedisClientObjectPool   & redisPool_;
     Aws::S3::S3Client       & s3Client_;
     Poco::Util::LayeredConfiguration & cfg_;
+    AmqpClient::Channel & myChannel_;
 };
 
 } // namespace RGT::Management
