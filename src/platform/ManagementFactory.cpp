@@ -34,7 +34,7 @@ Poco::Net::HTTPRequestHandler * ManagementFactory::createRequestHandler(const Po
             return new EndRaceHandler(sessionPool_, redisPool_, s3Client_);
         }
         else if (uri == "/test") {
-            return new TestHandler(myChannel_);
+            return new TestHandler(amqpConnection_);
         }
     }
 }

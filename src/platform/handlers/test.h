@@ -4,8 +4,12 @@
 #include <Poco/Net/HTTPRequestHandler.h>
 #include <Poco/Data/SessionPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
+#include <Poco/JSON/Object.h>
+#include <Poco/Net/HTTPServerResponse.h>
 
-#include <SimpleAmqpClient/SimpleAmqpClient.h>
+#include <rgt/devkit/RGTException.h>
+
+#include <Utils.h>
 
 namespace RGT::Management
 {
@@ -13,7 +17,7 @@ namespace RGT::Management
 class TestHandler : public Poco::Net::HTTPRequestHandler
 {
 public:
-    TestHandler(AmqpClient::Channel & channel) : channel_{channel}
+    TestHandler(RabbitMQSubsystem::AmqpConnection & amqpConnection) : amqpConnection_{amqpConnection}
     {
     }
 
@@ -21,38 +25,20 @@ private:
     virtual void handleRequest(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response) final
     try
     {
-        std::string payload = "hello from management";
-        auto rabbitRequest = AmqpClient::BasicMessage::Create(payload);
-
-        rabbitRequest->ReplyTo("management_notifications");  // Куда ждём ответ
-        rabbitRequest->CorrelationId("req_001");   // ID запроса для сопоставления
-
-        channel_.BasicPublish("", "analytics_tasks", rabbitRequest);
-
-        std::cout << "[SEND] -> " << "analytics_tasks" << ": " << payload << "\n";
-
-        std::string consumer_tag = channel_.BasicConsume(
-            "management_notifications", "", false, false, false
-        );
+        const char * message = "Hello from rgt-management!";
+        amqp_bytes_t amqpMsg = amqp_cstring_bytes(message);
+        amqp_basic_publish(amqpConnection_.connection, amqpConnection_.channel, amqp_empty_bytes,
+            amqp_cstring_bytes("queue_analytics"), 0, 0, nullptr, amqpMsg);
         
-        std::cout << "⏳ Waiting for analytics response...\n";
-
-        AmqpClient::Envelope::ptr_t envelope;
-        if (channel_.BasicConsumeMessage(consumer_tag, envelope, 30000)) {
-            // Проверяем correlation_id (на случай, если очередь общая)
-            if (envelope->Message()->CorrelationId() == "req_001") {
-                std::cout << "[RECV] <- " << "management_notifications" << ": " 
-                        << envelope->Message()->Body() << "\n";
-                // Ack не нужен, если no_ack=true, но у нас false — подтверждаем
-                channel_.BasicAck(envelope);
-            }
-        } else {
-            std::cerr << "[TIMEOUT] No response received\n";
+        amqp_rpc_reply_t publishResult = amqp_get_rpc_reply(amqpConnection_.connection);
+        if (publishResult.reply_type != AMQP_RESPONSE_NORMAL) {
+            throw RGT::Devkit::RGTException("publish msg failed", Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
         }
 
+        // УБЕДИТЬСЯ, ЧТО МЫ СМОГЛИ ОТПРАВИТЬ СООБЩЕНИЕ
+
         Poco::JSON::Object json;
-        json.set("status", "OK");
-        json.set("message", "OK");
+        json.set("OK", "OK");
 
         std::ostream & out = response.send();
         json.stringify(out);
@@ -63,7 +49,7 @@ private:
     }
 
 private:
-    AmqpClient::Channel & channel_;
+    RabbitMQSubsystem::AmqpConnection & amqpConnection_;
 };
 
 } // namespace RGT::Management
