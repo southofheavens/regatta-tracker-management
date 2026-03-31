@@ -2,6 +2,7 @@
 #define __END_RACE_HANDLER_H__
 
 #include <rgt/devkit/HTTPRequestHandler.h>
+#include <rgt/devkit/subsystems/RabbitMQSubsystem.h>
 
 #include <Poco/Data/SessionPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
@@ -20,10 +21,13 @@ class EndRaceHandler : public RGT::Devkit::HTTPRequestHandler
 public:
     using RedisClientObjectPool = Poco::ObjectPool<Poco::Redis::Client, Poco::Redis::Client::Ptr>;
 
-    EndRaceHandler(Poco::Data::SessionPool & sessionPool, RedisClientObjectPool & redisPool, Aws::S3::S3Client & s3Client) 
+    EndRaceHandler(Poco::Data::SessionPool & sessionPool, RedisClientObjectPool & redisPool, 
+        Aws::S3::S3Client & s3Client, 
+        RGT::Devkit::Subsystems::RabbitMQSubsystem::AmqpConnection & amqpConnection) 
         : sessionPool_{sessionPool}
         , redisPool_{redisPool}
         , s3Client_{s3Client}
+        , amqpConnection_{amqpConnection}
     {
     }
 
@@ -45,6 +49,7 @@ private:
     Poco::Data::SessionPool & sessionPool_;
     RedisClientObjectPool   & redisPool_;
     Aws::S3::S3Client       & s3Client_;
+    RGT::Devkit::Subsystems::RabbitMQSubsystem::AmqpConnection & amqpConnection_;
 };
 
 } // namespace RGT::Management

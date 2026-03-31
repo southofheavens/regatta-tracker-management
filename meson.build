@@ -25,9 +25,6 @@ crypto = cpp.find_library('crypto', required: true)
 aws_core = cpp.find_library('aws-cpp-sdk-core', required: true)
 aws_s3 = cpp.find_library('aws-cpp-sdk-s3', required: true)
 
-rabbitmq = cpp.find_library('rabbitmq', required: true)
-simpleamqpclient = cpp.find_library('SimpleAmqpClient', required: true)
-
 all_deps = [
   poco_foundation,
   poco_util,
@@ -43,8 +40,6 @@ all_deps = [
   devkit_dep,
   aws_core,
   aws_s3,
-  rabbitmq,
-  simpleamqpclient
 ]
 
 if poco_data.found()

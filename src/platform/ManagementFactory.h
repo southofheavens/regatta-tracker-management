@@ -10,6 +10,8 @@
 
 #include <Utils.h>
 
+#include <rgt/devkit/subsystems/RabbitMQSubsystem.h>
+
 namespace Aws::S3 { class S3Client; } // namespace Aws::S3
 
 namespace RGT::Management
@@ -21,13 +23,13 @@ public:
     using RedisClientObjectPool = Poco::ObjectPool<Poco::Redis::Client, Poco::Redis::Client::Ptr>;
 
     ManagementFactory(Poco::Data::SessionPool & sessionPool, RedisClientObjectPool & redisPool, 
-        Aws::S3::S3Client & s3Client, Poco::Util::LayeredConfiguration & cfg, 
-        RabbitMQSubsystem::AmqpConnection & amqpConnection) 
+        Aws::S3::S3Client & s3Client, Poco::Util::LayeredConfiguration & cfg,
+        RGT::Devkit::Subsystems::RabbitMQSubsystem::AmqpConnection & amqpConnection) 
         : sessionPool_(sessionPool)
         , redisPool_(redisPool)
         , s3Client_{s3Client}
         , cfg_(cfg)
-        , amqpConnection_(amqpConnection)
+        , amqpConnection_{amqpConnection}
     {
     }
 
@@ -37,8 +39,8 @@ private:
     Poco::Data::SessionPool & sessionPool_;
     RedisClientObjectPool   & redisPool_;
     Aws::S3::S3Client       & s3Client_;
-    Poco::Util::LayeredConfiguration  & cfg_;
-    RabbitMQSubsystem::AmqpConnection & amqpConnection_;
+    Poco::Util::LayeredConfiguration & cfg_;
+    RGT::Devkit::Subsystems::RabbitMQSubsystem::AmqpConnection & amqpConnection_;
 };
 
 } // namespace RGT::Management

@@ -8,8 +8,7 @@
 #include <Poco/Net/HTTPServerResponse.h>
 
 #include <rgt/devkit/RGTException.h>
-
-#include <Utils.h>
+#include <rgt/devkit/subsystems/RabbitMQSubsystem.h>
 
 namespace RGT::Management
 {
@@ -17,7 +16,8 @@ namespace RGT::Management
 class TestHandler : public Poco::Net::HTTPRequestHandler
 {
 public:
-    TestHandler(RabbitMQSubsystem::AmqpConnection & amqpConnection) : amqpConnection_{amqpConnection}
+    TestHandler(Devkit::Subsystems::RabbitMQSubsystem::AmqpConnection & amqpConnection) 
+        : amqpConnection_{amqpConnection}
     {
     }
 
@@ -49,7 +49,7 @@ private:
     }
 
 private:
-    RabbitMQSubsystem::AmqpConnection & amqpConnection_;
+    Devkit::Subsystems::RabbitMQSubsystem::AmqpConnection & amqpConnection_;
 };
 
 } // namespace RGT::Management

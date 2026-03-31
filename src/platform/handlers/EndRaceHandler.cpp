@@ -1,194 +1,5 @@
 #include <handlers/EndRaceHandler.h>
 
-#include <Poco/Redis/PoolableConnectionFactory.h>
-#include <Poco/Redis/Type.h>
-#include <Poco/XML/XMLWriter.h>
-#include <Poco/SAX/AttributesImpl.h>
-
-#include <aws/s3/model/PutObjectRequest.h>
-
-#include <iomanip>
-
-namespace
-{
-
-/// @brief Извлекает из Redis список с координатами участника
-/// @param pc Установленное соединение с Redis
-/// @param userId ID участника, список с координатами которого необходимо извлечь
-/// @return Poco::Redis::Array массив с координатами
-Poco::Redis::Array 
-getParticipantCoordinates
-(
-    Poco::Redis::Client::Ptr clientPtr,
-    const uint64_t & userId
-)
-{
-    if (not clientPtr->isConnected()) 
-    {
-        // TODO лог
-        throw std::exception{};
-    }
-
-    Poco::Redis::Array cmd;
-    cmd << "LRANGE" << std::format("user_participation:{}", userId) 
-        << "1" /* начинаем с 1 потому, что элемент с индексом 0 содержит строку "init" */
-        << "-1";
-    return clientPtr->execute<Poco::Redis::Array>(cmd);
-}
-
-using RedisClientObjectPool = Poco::ObjectPool<Poco::Redis::Client, Poco::Redis::Client::Ptr>;
-
-/// @brief Извлекает из Redis списки с координатами участников
-/// @param participantsIds Вектор с id участников
-/// @param redisPool Пул соединений с Redis
-/// @return Вектор с парами вида user_id - список координат
-std::vector<std::pair<uint64_t, Poco::Redis::Array>>
-getParticipantsCoordinates
-(
-    const std::vector<uint64_t> & participantsIds,
-    RedisClientObjectPool & redisPool
-)
-{
-    Poco::Redis::PooledConnection pc(redisPool, 500);
-    Poco::Redis::Client::Ptr clientPtr = static_cast<Poco::Redis::Client::Ptr>(pc);
-    if (clientPtr == nullptr or not clientPtr->isConnected()) 
-    {
-        // TODO лог
-        throw std::exception{};
-    }
-
-    std::vector<std::pair<uint64_t, Poco::Redis::Array>> result;
-    for (const uint64_t & id : participantsIds)
-    {
-        Poco::Redis::Array coordinates = getParticipantCoordinates(pc, id);
-        result.push_back({id,coordinates});
-    }
-    return result;
-}
-
-struct Trackpoint
-{
-    double longitude;
-    double latitude;
-    uint64_t microsecondsSinceEpoch;
-};
-
-Trackpoint parseTrackpoint(const std::string & entry)
-{
-    // Проверка ошибок опускается по той причине, что логика обработки запроса
-    // приёма данных не пропустит некорректную запись о координатах и отклонит запрос,
-    // а, следовательно, все записи, полученные из Redis, являются корректными
-
-    uint64_t firstSemicolonPos = entry.find(';');
-    uint64_t secondSemicolonPos = entry.find(';', firstSemicolonPos + 1);
-
-    double longitude = std::stod(entry.substr(0, firstSemicolonPos));
-    double latitude = std::stod(entry.substr(firstSemicolonPos + 1, secondSemicolonPos));
-    uint64_t microseconds = std::stoull(entry.substr(secondSemicolonPos + 1));
-
-    return Trackpoint
-    {
-        .longitude = longitude, 
-        .latitude = latitude,
-        .microsecondsSinceEpoch = microseconds
-    };
-}
-
-std::vector<Trackpoint> parseParticipantTrackpoints(const Poco::Redis::Array & entries)
-{
-    std::vector<Trackpoint> trackpoints;
-
-    for (const Poco::Redis::RedisType::Ptr & typePtr : entries)
-    {   
-        // Здесь опускаем проверки на typePtr->isBulkString() и на typeBulkString.value().isNull()  
-        // по той же причине, что и в функции parseTrackpoint
-
-        const Poco::Redis::Type<Poco::Redis::BulkString> & typeBulkString = 
-            dynamic_cast<const Poco::Redis::Type<Poco::Redis::BulkString> &>(*typePtr);
-
-        const std::string & entry = typeBulkString.value().value();
-        trackpoints.push_back(parseTrackpoint(entry));
-    }
-
-    return trackpoints;
-}
-
-std::vector<std::pair<uint64_t, std::vector<Trackpoint>>>
-parseParticipantsTrackpoints
-(
-    const std::vector<std::pair<uint64_t, Poco::Redis::Array>> & participantCoordinates
-)
-{
-    std::vector<std::pair<uint64_t, std::vector<Trackpoint>>> participantsTrackpoints;
-    participantsTrackpoints.reserve(participantCoordinates.size());
-
-    for (const auto & [id, array] : participantCoordinates) {
-        participantsTrackpoints.push_back({id, parseParticipantTrackpoints(array)});
-    }
-
-    return participantsTrackpoints;
-}
-
-std::string generateGpxFromCoordinates(const std::vector<Trackpoint> & trackpoints)
-{
-    std::ostringstream oss;
-
-    using XMLOptions = Poco::XML::XMLWriter::Options;
-    Poco::XML::XMLWriter writer(oss, XMLOptions::WRITE_XML_DECLARATION | XMLOptions::PRETTY_PRINT);
-
-    writer.startDocument();
-
-    Poco::XML::AttributesImpl gpxAttrs;
-    gpxAttrs.addAttribute("", "version", "version", "CDATA", "1.1");
-    gpxAttrs.addAttribute("", "xmlns", "xmlns", "CDATA", "http://www.topografix.com/GPX/1/1");
-    writer.startElement("", "gpx", "gpx", gpxAttrs);
-
-    writer.startElement("", "trk", "trk", Poco::XML::AttributesImpl());
-
-    writer.startElement("", "name", "name", Poco::XML::AttributesImpl());
-    writer.characters("My Race Track");
-    writer.endElement("", "name", "name");
-
-    writer.startElement("", "trkseg", "trkseg", Poco::XML::AttributesImpl());
-
-    auto formatCoord = [](const double value, const uint8_t & precision = 6) -> std::string
-    {
-        std::ostringstream osstream;
-        osstream << std::fixed << std::setprecision(precision) << value;
-        return osstream.str();
-    };
-
-    for (const Trackpoint & trkpt : trackpoints)
-    {
-        Poco::XML::AttributesImpl trkptAttrs;
-        trkptAttrs.addAttribute("", "lat", "lat", "CDATA", formatCoord(trkpt.latitude));
-        trkptAttrs.addAttribute("", "lon", "lon", "CDATA", formatCoord(trkpt.longitude));
-
-        writer.startElement("", "trkpt", "trkpt", trkptAttrs);
-
-        writer.startElement("", "time", "time", Poco::XML::AttributesImpl());
-        std::string timeStr = Poco::DateTimeFormatter::format(
-            Poco::DateTime(Poco::Timestamp(trkpt.microsecondsSinceEpoch)),
-            Poco::DateTimeFormat::ISO8601_FORMAT
-        );
-        writer.characters(timeStr);
-
-        writer.endElement("", "time", "time");
-
-        writer.endElement("", "trkpt", "trkpt");
-    }
-
-    writer.endElement("", "trkseg", "trkseg");
-    writer.endElement("", "trk", "trk");
-    writer.endElement("", "gpx", "gpx");
-
-    writer.endDocument();
-
-    return oss.str();
-}
-
-} // namespace 
-
 namespace RGT::Management
 {
 
@@ -236,122 +47,87 @@ void EndRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request, P
         throw RGT::Devkit::RGTException("Only Judge can stop a race", Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
     }
 
-    Poco::Data::Session session = sessionPool_.get();
+    {
+        Poco::Data::Session session = sessionPool_.get();
 
-    bool isRaceExists = false;
-    session <<
-        "SELECT EXISTS ("
-            "SELECT 1 "
-            "FROM races "
-            "WHERE id = $1"
-        ");",
-        Poco::Data::Keywords::use(requiredPayload.raceId),
-        Poco::Data::Keywords::into(isRaceExists),
-        Poco::Data::Keywords::now;
-    if (not isRaceExists)
-    {
-        throw RGT::Devkit::RGTException(std::format("The race with id {} is not exists", requiredPayload.raceId), 
-            Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
-    }
-    
-    bool isParticipationExists = false;
-    session <<
-        "SELECT EXISTS ("
-            "SELECT 1 "
-            "FROM participations "
-            "WHERE user_id = $1 AND race_id = $2"
-        ");",
-        Poco::Data::Keywords::use(requiredPayload.tokenPayload.sub),
-        Poco::Data::Keywords::use(requiredPayload.raceId),
-        Poco::Data::Keywords::into(isParticipationExists),
-        Poco::Data::Keywords::now;
-    if (not isParticipationExists)
-    {
-        throw RGT::Devkit::RGTException
-        (
-            std::format
+        bool isRaceExists = false;
+        session <<
+            "SELECT EXISTS ("
+                "SELECT 1 "
+                "FROM races "
+                "WHERE id = $1"
+            ");",
+            Poco::Data::Keywords::use(requiredPayload.raceId),
+            Poco::Data::Keywords::into(isRaceExists),
+            Poco::Data::Keywords::now;
+        if (not isRaceExists)
+        {
+            throw RGT::Devkit::RGTException(std::format("The race with id {} is not exists", requiredPayload.raceId), 
+                Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
+        }
+        
+        bool isParticipationExists = false;
+        session <<
+            "SELECT EXISTS ("
+                "SELECT 1 "
+                "FROM participations "
+                "WHERE user_id = $1 AND race_id = $2"
+            ");",
+            Poco::Data::Keywords::use(requiredPayload.tokenPayload.sub),
+            Poco::Data::Keywords::use(requiredPayload.raceId),
+            Poco::Data::Keywords::into(isParticipationExists),
+            Poco::Data::Keywords::now;
+        if (not isParticipationExists)
+        {
+            throw RGT::Devkit::RGTException
             (
-                "The judge is not part of the judging panel for the race with ID {}",
-                requiredPayload.raceId
-            ),
-            Poco::Net::HTTPResponse::HTTP_BAD_REQUEST
-        );
-    } 
+                std::format
+                (
+                    "The judge is not part of the judging panel for the race with ID {}",
+                    requiredPayload.raceId
+                ),
+                Poco::Net::HTTPResponse::HTTP_BAD_REQUEST
+            );
+        } 
 
-    std::string raceStatus;
-    session <<
-        "SELECT status "
-        "FROM races "
-        "WHERE id = $1",
-        Poco::Data::Keywords::use(requiredPayload.raceId),
-        Poco::Data::Keywords::into(raceStatus),
-        Poco::Data::Keywords::now;
+        std::string raceStatus;
+        session <<
+            "SELECT status "
+            "FROM races "
+            "WHERE id = $1",
+            Poco::Data::Keywords::use(requiredPayload.raceId),
+            Poco::Data::Keywords::into(raceStatus),
+            Poco::Data::Keywords::now;
 
-    if (raceStatus != "In_progress")
-    {
-        if (raceStatus == "Not_started")
+        if (raceStatus != "In_progress")
         {
-            throw RGT::Devkit::RGTException(std::format("The race {} is not started", requiredPayload.raceId),
-                Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
-        }
-        else 
-        {
-            throw RGT::Devkit::RGTException(std::format("The race {} is already over", requiredPayload.raceId), 
-                Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
+            if (raceStatus == "Not_started")
+            {
+                throw RGT::Devkit::RGTException(std::format("The race {} is not started", requiredPayload.raceId),
+                    Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
+            }
+            else 
+            {
+                throw RGT::Devkit::RGTException(std::format("The race {} is already over", requiredPayload.raceId), 
+                    Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
+            }
         }
     }
 
-    // Проверки окончены. Добавляем в запись текущее время по UTC и меняем статус гонки
-
-    session <<
-        "UPDATE races "
-        "SET end_of_the_race = NOW() " /* TODO переименовать в end_time */
-        "WHERE id = $1;",
-        Poco::Data::Keywords::use(requiredPayload.raceId),
-        Poco::Data::Keywords::now;
-
-    session <<
-        "UPDATE races "
-        "SET status = 'Finished' "
-        "WHERE id = $1;",
-        Poco::Data::Keywords::use(requiredPayload.raceId),
-        Poco::Data::Keywords::now;
+    const char * message = std::to_string(requiredPayload.raceId).c_str();
+    amqp_bytes_t amqpMsg = amqp_cstring_bytes(message);
+    amqp_basic_publish(amqpConnection_.connection, amqpConnection_.channel, amqp_empty_bytes,
+        amqp_cstring_bytes("postprocessor_tasks"), 0, 0, nullptr, amqpMsg);
     
-    std::vector<uint64_t> participantsIds;
-    session << 
-        "SELECT user_id "
-        "FROM participations "
-        "WHERE race_id = $1 AND role = 'Participant';",
-        Poco::Data::Keywords::use(requiredPayload.raceId),
-        Poco::Data::Keywords::into(participantsIds),
-        Poco::Data::Keywords::now;
-
-    session.close();
-
-    // Извлекаем из Redis координаты каждого участника гонки
-    std::vector<std::pair<uint64_t, Poco::Redis::Array>> usersCoordinates = 
-        getParticipantsCoordinates(participantsIds, redisPool_);
-    std::vector<std::pair<uint64_t, std::vector<Trackpoint>>> usersTrackpoints = 
-        parseParticipantsTrackpoints(usersCoordinates);
-
-    // Генерируем GPX'ы и заливаем их в minio
-    for (const auto & [userId, trackpoints] : usersTrackpoints)
+    amqp_rpc_reply_t publishResult = amqp_get_rpc_reply(amqpConnection_.connection);
+    if (publishResult.reply_type != AMQP_RESPONSE_NORMAL) 
     {
-        Aws::S3::Model::PutObjectRequest putRequest;
-        putRequest.SetKey(std::format("race_{}/user_{}.gpx", requiredPayload.raceId, userId));
-        putRequest.SetBucket("gpx-files");
-
-        std::shared_ptr<Aws::StringStream> inputData = Aws::MakeShared<Aws::StringStream>("UploadHandlerInputStream");
-        *inputData << generateGpxFromCoordinates(trackpoints);
-        putRequest.SetBody(inputData);
-        putRequest.SetContentType("application/gpx+xml");
-
-        Aws::S3::Model::PutObjectOutcome outcome = s3Client_.PutObject(putRequest);
+        // TODO лог
+        throw std::runtime_error("publish msg failed");
     }
 
-    // Отправляем микросервису аналитики уведомление о том, что можно приступать к анализу
+    // УБЕДИТЬСЯ, ЧТО МЫ СМОГЛИ ОТПРАВИТЬ СООБЩЕНИЕ
 
-    // УДАЛЯЕМ ИЗ REDIS ключи
     
     HTTPRequestHandler::sendJsonResponse(response, "OK", "OK");
 }
