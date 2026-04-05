@@ -1,4 +1,4 @@
-#include <handlers/CreateRaceHandler.h>
+#include <Handlers/CreateRaceHandler.h>
 
 namespace
 {
@@ -8,7 +8,7 @@ constexpr uint8_t min_judges_count = 1;
 
 } // namespace
 
-namespace RGT::Management
+namespace RGT::Management::Handlers
 {
 
 void CreateRaceHandler::requestPreprocessing(Poco::Net::HTTPServerRequest & request)
@@ -199,4 +199,4 @@ void CreateRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request
     json.stringify(out);
 }
 
-} // namespace RGT::Management
+} // namespace RGT::Management::Handlers

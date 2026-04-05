@@ -7,12 +7,12 @@
 #include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/HTTPResponse.h>
 
-#include <rgt/devkit/RGTException.h>
-#include <rgt/devkit/General.h>
-#include <rgt/devkit/subsystems/S3Subsystem.h>
-#include <rgt/devkit/subsystems/PsqlSubsystem.h>
-#include <rgt/devkit/subsystems/RedisSubsystem.h>
-#include <rgt/devkit/subsystems/RabbitMQSubsystem.h>
+#include <RGT/Devkit/RGTException.h>
+#include <RGT/Devkit/General.h>
+#include <RGT/Devkit/Subsystems/S3Subsystem.h>
+#include <RGT/Devkit/Subsystems/PsqlSubsystem.h>
+#include <RGT/Devkit/Subsystems/RedisSubsystem.h>
+#include <RGT/Devkit/Subsystems/RabbitMQSubsystem.h>
 
 #include <aws/core/Aws.h>
 
@@ -60,8 +60,8 @@ int ManagementServer::main(const std::vector<std::string>&)
     (
         new Management::ManagementFactory
         (
-            psqlSubsystem.getPool(), redisSubsystem.getPool(), s3Subsystem.getS3Client(), cfg, 
-            rabbitmqSubsystem.getAmqpConnection("postprocessor")
+            psqlSubsystem.getPool(), redisSubsystem.getPool(), s3Subsystem.getS3Client(), 
+            rabbitmqSubsystem.getChannel(), cfg
         ), 
         svs, 
         new Poco::Net::HTTPServerParams

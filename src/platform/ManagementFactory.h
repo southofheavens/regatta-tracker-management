@@ -1,5 +1,4 @@
-#ifndef __MANAGEMENT_FACTORY_H__
-#define __MANAGEMENT_FACTORY_H__
+#pragma once
 
 #include <Poco/Net/HTTPRequestHandlerFactory.h>
 #include <Poco/ObjectPool.h>
@@ -10,7 +9,7 @@
 
 #include <Utils.h>
 
-#include <rgt/devkit/subsystems/RabbitMQSubsystem.h>
+#include <RGT/Devkit/Subsystems/RabbitMQSubsystem.h>
 
 namespace Aws::S3 { class S3Client; } // namespace Aws::S3
 
@@ -23,13 +22,13 @@ public:
     using RedisClientObjectPool = Poco::ObjectPool<Poco::Redis::Client, Poco::Redis::Client::Ptr>;
 
     ManagementFactory(Poco::Data::SessionPool & sessionPool, RedisClientObjectPool & redisPool, 
-        Aws::S3::S3Client & s3Client, Poco::Util::LayeredConfiguration & cfg,
-        RGT::Devkit::Subsystems::RabbitMQSubsystem::AmqpConnection & amqpConnection) 
+        Aws::S3::S3Client & s3Client, AmqpClient::Channel & amqpChannel, 
+        Poco::Util::LayeredConfiguration & cfg) 
         : sessionPool_(sessionPool)
         , redisPool_(redisPool)
         , s3Client_{s3Client}
+        , amqpChannel_{amqpChannel}
         , cfg_(cfg)
-        , amqpConnection_{amqpConnection}
     {
     }
 
@@ -39,10 +38,9 @@ private:
     Poco::Data::SessionPool & sessionPool_;
     RedisClientObjectPool   & redisPool_;
     Aws::S3::S3Client       & s3Client_;
+    AmqpClient::Channel     & amqpChannel_;
+
     Poco::Util::LayeredConfiguration & cfg_;
-    RGT::Devkit::Subsystems::RabbitMQSubsystem::AmqpConnection & amqpConnection_;
 };
 
 } // namespace RGT::Management
-
-#endif // __MANAGEMENT_FACTORY_H__

@@ -55,9 +55,9 @@ src_files = [
   'src/platform/Utils.cpp',
   'src/platform/ManagementFactory.cpp',
   'src/platform/ManagementServer.cpp',
-  'src/platform/handlers/CreateRaceHandler.cpp',
-  'src/platform/handlers/StartRaceHandler.cpp',
-  'src/platform/handlers/EndRaceHandler.cpp',
+  'src/platform/Handlers/CreateRaceHandler.cpp',
+  'src/platform/Handlers/StartRaceHandler.cpp',
+  'src/platform/Handlers/EndRaceHandler.cpp',
 ]
 
 include_dirs = [

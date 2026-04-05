@@ -1,8 +1,6 @@
-#ifndef __END_RACE_HANDLER_H__
-#define __END_RACE_HANDLER_H__
+#pragma once
 
-#include <rgt/devkit/HTTPRequestHandler.h>
-#include <rgt/devkit/subsystems/RabbitMQSubsystem.h>
+#include <RGT/Devkit/HTTPRequestHandler.h>
 
 #include <Poco/Data/SessionPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
@@ -11,9 +9,11 @@
 
 #include <aws/s3/S3Client.h>
 
+#include <SimpleAmqpClient/Channel.h>
+
 #include <any>
 
-namespace RGT::Management
+namespace RGT::Management::Handlers
 {
 
 class EndRaceHandler : public RGT::Devkit::HTTPRequestHandler
@@ -23,11 +23,11 @@ public:
 
     EndRaceHandler(Poco::Data::SessionPool & sessionPool, RedisClientObjectPool & redisPool, 
         Aws::S3::S3Client & s3Client, 
-        RGT::Devkit::Subsystems::RabbitMQSubsystem::AmqpConnection & amqpConnection) 
+        AmqpClient::Channel & amqpChannel) 
         : sessionPool_{sessionPool}
         , redisPool_{redisPool}
         , s3Client_{s3Client}
-        , amqpConnection_{amqpConnection}
+        , amqpChannel_{amqpChannel}
     {
     }
 
@@ -49,9 +49,7 @@ private:
     Poco::Data::SessionPool & sessionPool_;
     RedisClientObjectPool   & redisPool_;
     Aws::S3::S3Client       & s3Client_;
-    RGT::Devkit::Subsystems::RabbitMQSubsystem::AmqpConnection & amqpConnection_;
+    AmqpClient::Channel     & amqpChannel_;
 };
 
-} // namespace RGT::Management
-
-#endif // __END_RACE_HANDLER_H__
+} // namespace RGT::Management::Handlers

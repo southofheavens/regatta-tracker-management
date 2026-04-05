@@ -1,14 +1,13 @@
-#ifndef __CREATE_RACE_HANDLER_H__
-#define __CREATE_RACE_HANDLER_H__
+#pragma once
 
-#include <rgt/devkit/HTTPRequestHandler.h>
+#include <RGT/Devkit/HTTPRequestHandler.h>
 
 #include <Poco/Data/SessionPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
 
 #include <any>
 
-namespace RGT::Management
+namespace RGT::Management::Handlers
 {
 
 class CreateRaceHandler : public RGT::Devkit::HTTPRequestHandler
@@ -38,6 +37,4 @@ private:
     Poco::Data::SessionPool          & sessionPool_;
 };
 
-} // namespace RGT::Management
-
-#endif // __CREATE_RACE_HANDLER_H__
+} // namespace RGT::Management::Handlers

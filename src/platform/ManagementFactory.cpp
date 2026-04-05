@@ -9,10 +9,9 @@
 #include <aws/s3/S3Client.h>
 #include <fstream>
 
-#include <handlers/CreateRaceHandler.h>
-#include <handlers/StartRaceHandler.h>
-#include <handlers/EndRaceHandler.h>
-#include <handlers/test.h>
+#include <Handlers/CreateRaceHandler.h>
+#include <Handlers/StartRaceHandler.h>
+#include <Handlers/EndRaceHandler.h>
 
 namespace RGT::Management
 {
@@ -25,13 +24,13 @@ Poco::Net::HTTPRequestHandler * ManagementFactory::createRequestHandler(const Po
     if (method == "POST")
     {
         if (uri == "/create_race") {
-            return new CreateRaceHandler(sessionPool_);
+            return new Handlers::CreateRaceHandler(sessionPool_);
         }
         else if (uri == "/start_race") {
-            return new StartRaceHandler(sessionPool_, redisPool_);
+            return new Handlers::StartRaceHandler(sessionPool_, redisPool_);
         }
         else if (uri == "/end_race") {
-            return new EndRaceHandler(sessionPool_, redisPool_, s3Client_, amqpConnection_);
+            return new Handlers::EndRaceHandler(sessionPool_, redisPool_, s3Client_, amqpChannel_);
         }
     }
 }

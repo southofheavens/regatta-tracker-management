@@ -1,7 +1,6 @@
-#ifndef __START_RACE_HANDLER_H__
-#define __START_RACE_HANDLER_H__
+#pragma once
 
-#include <rgt/devkit/HTTPRequestHandler.h>
+#include <RGT/Devkit/HTTPRequestHandler.h>
 
 #include <Poco/Data/SessionPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
@@ -10,7 +9,7 @@
 
 #include <any>
 
-namespace RGT::Management
+namespace RGT::Management::Handlers
 {
 
 class StartRaceHandler : public RGT::Devkit::HTTPRequestHandler
@@ -43,6 +42,4 @@ private:
     RedisClientObjectPool   & redisPool_;
 };
 
-} // namespace RGT::Management
-
-#endif // __START_RACE_HANDLER_H__
+} // namespace RGT::Management::Handlers

@@ -1,5 +1,4 @@
-#ifndef __MANAGEMENT_SERVER_H__
-#define __MANAGEMENT_SERVER_H__
+#pragma once
 
 #include <Poco/Util/ServerApplication.h>
 
@@ -17,5 +16,3 @@ public:
 };
 
 } // namespace RGT::Management
-
-#endif // __MANAGEMENT_SERVER_H__

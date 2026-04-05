@@ -1,4 +1,4 @@
-#include <handlers/StartRaceHandler.h>
+#include <Handlers/StartRaceHandler.h>
 
 #include <Poco/Redis/PoolableConnectionFactory.h>
 
@@ -25,7 +25,7 @@ void createParticipations(RedisClientObjectPool & redisPool, const std::vector<u
 
 } // namespace
 
-namespace RGT::Management
+namespace RGT::Management::Handlers
 {
 
 void StartRaceHandler::requestPreprocessing(Poco::Net::HTTPServerRequest & request)
@@ -170,4 +170,4 @@ void StartRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request,
     HTTPRequestHandler::sendJsonResponse(response, "OK", "OK");
 }
 
-} // namespace RGT::Management
+} // namespace RGT::Management::Handlers

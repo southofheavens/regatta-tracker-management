@@ -1,6 +1,6 @@
-#include <handlers/EndRaceHandler.h>
+#include <Handlers/EndRaceHandler.h>
 
-namespace RGT::Management
+namespace RGT::Management::Handlers
 {
 
 void EndRaceHandler::requestPreprocessing(Poco::Net::HTTPServerRequest & request)
@@ -114,20 +114,9 @@ void EndRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request, P
         }
     }
 
-    const char * message = std::to_string(requiredPayload.raceId).c_str();
-    amqp_bytes_t amqpMsg = amqp_cstring_bytes(message);
-    amqp_basic_publish(amqpConnection_.connection, amqpConnection_.channel, amqp_empty_bytes,
-        amqp_cstring_bytes("postprocessor_tasks"), 0, 0, nullptr, amqpMsg);
-    
-    amqp_rpc_reply_t publishResult = amqp_get_rpc_reply(amqpConnection_.connection);
-    if (publishResult.reply_type != AMQP_RESPONSE_NORMAL) 
-    {
-        // TODO лог
-        throw std::runtime_error("publish msg failed");
-    }
-
-    // УБЕДИТЬСЯ, ЧТО МЫ СМОГЛИ ОТПРАВИТЬ СООБЩЕНИЕ
-
+    AmqpClient::BasicMessage::ptr_t msg = AmqpClient::BasicMessage::Create(std::to_string(requiredPayload.raceId));
+    msg->DeliveryMode(AmqpClient::BasicMessage::dm_persistent);
+    amqpChannel_.BasicPublish("", "postprocessor_tasks", msg);
     
     HTTPRequestHandler::sendJsonResponse(response, "OK", "OK");
 }
