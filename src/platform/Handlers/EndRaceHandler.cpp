@@ -1,5 +1,7 @@
 #include <Handlers/EndRaceHandler.h>
 
+#include <Utils.h>
+
 namespace RGT::Management::Handlers
 {
 
@@ -10,7 +12,7 @@ void EndRaceHandler::requestPreprocessing(Poco::Net::HTTPServerRequest & request
     HTTPRequestHandler::checkContentType(request, "application/json");
 }
 
-std::any EndRaceHandler::extractPayloadFromRequest(Poco::Net::HTTPServerRequest & request)
+void EndRaceHandler::extractPayloadFromRequest(Poco::Net::HTTPServerRequest & request)
 {
     const std::string & accessToken = HTTPRequestHandler::extractTokenFromRequest(request);
     RGT::Devkit::JWTPayload tokenPayload = HTTPRequestHandler::extractPayload(accessToken);
@@ -32,89 +34,57 @@ std::any EndRaceHandler::extractPayloadFromRequest(Poco::Net::HTTPServerRequest 
             Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
     }
 
-    return RequiredPayload
-    {
-        .tokenPayload = tokenPayload,
-        .raceId = raceId
-    };
+    requestPayload_.tokenPayload = tokenPayload;
+    requestPayload_.raceId = raceId;
 }
 
 void EndRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request, Poco::Net::HTTPServerResponse & response)
 {
-    RequiredPayload requiredPayload = std::any_cast<RequiredPayload>(payload_);
-
-    if (requiredPayload.tokenPayload.role != "Judge") {
+    if (requestPayload_.tokenPayload.role != "Judge") {
         throw RGT::Devkit::RGTException("Only Judge can stop a race", Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
     }
 
     {
         Poco::Data::Session session = sessionPool_.get();
 
-        bool isRaceExists = false;
-        session <<
-            "SELECT EXISTS ("
-                "SELECT 1 "
-                "FROM races "
-                "WHERE id = $1"
-            ");",
-            Poco::Data::Keywords::use(requiredPayload.raceId),
-            Poco::Data::Keywords::into(isRaceExists),
-            Poco::Data::Keywords::now;
-        if (not isRaceExists)
+        if (not RGT::Management::isRaceExists(session, requestPayload_.raceId))
         {
-            throw RGT::Devkit::RGTException(std::format("The race with id {} is not exists", requiredPayload.raceId), 
+            throw RGT::Devkit::RGTException(std::format("The race with id {} is not exists", requestPayload_.raceId), 
                 Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
         }
         
-        bool isParticipationExists = false;
-        session <<
-            "SELECT EXISTS ("
-                "SELECT 1 "
-                "FROM participations "
-                "WHERE user_id = $1 AND race_id = $2"
-            ");",
-            Poco::Data::Keywords::use(requiredPayload.tokenPayload.sub),
-            Poco::Data::Keywords::use(requiredPayload.raceId),
-            Poco::Data::Keywords::into(isParticipationExists),
-            Poco::Data::Keywords::now;
-        if (not isParticipationExists)
+        if (not RGT::Management::isParticipationExists(session, requestPayload_.raceId, requestPayload_.tokenPayload.sub))
         {
             throw RGT::Devkit::RGTException
             (
                 std::format
                 (
                     "The judge is not part of the judging panel for the race with ID {}",
-                    requiredPayload.raceId
+                    requestPayload_.raceId
                 ),
                 Poco::Net::HTTPResponse::HTTP_BAD_REQUEST
             );
         } 
 
         std::string raceStatus;
-        session <<
-            "SELECT status "
-            "FROM races "
-            "WHERE id = $1",
-            Poco::Data::Keywords::use(requiredPayload.raceId),
-            Poco::Data::Keywords::into(raceStatus),
-            Poco::Data::Keywords::now;
-
-        if (raceStatus != "In_progress")
+        if ((raceStatus = RGT::Management::getRaceStatus(session, requestPayload_.raceId)) != "In_progress")
         {
             if (raceStatus == "Not_started")
             {
-                throw RGT::Devkit::RGTException(std::format("The race {} is not started", requiredPayload.raceId),
+                throw RGT::Devkit::RGTException(std::format("The race {} is not started", requestPayload_.raceId),
                     Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
             }
             else 
             {
-                throw RGT::Devkit::RGTException(std::format("The race {} is already over", requiredPayload.raceId), 
+                throw RGT::Devkit::RGTException(std::format("The race {} is already over", requestPayload_.raceId), 
                     Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
             }
         }
     }
 
-    AmqpClient::BasicMessage::ptr_t msg = AmqpClient::BasicMessage::Create(std::to_string(requiredPayload.raceId));
+    // TODO по-моему в БД нужно перевести статус в finished именно здесь, а не в постпроцессоре + добавить идемпотентность 
+
+    AmqpClient::BasicMessage::ptr_t msg = AmqpClient::BasicMessage::Create(std::to_string(requestPayload_.raceId));
     msg->DeliveryMode(AmqpClient::BasicMessage::dm_persistent);
     amqpChannel_.BasicPublish("", "postprocessor_tasks", msg);
     

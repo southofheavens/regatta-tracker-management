@@ -72,5 +72,8 @@ executable('rgt-management',
     '-Wl,-rpath,@executable_path/../lib',      # ищет рядом с бинарником
     '-Wl,-rpath,/opt/homebrew/lib',            # Homebrew на Apple Silicon
     '-Wl,-rpath,/usr/local/lib',               # Homebrew на Intel Mac
-  ]
+  ],
+  cpp_args: ['-DPROJECT_NAME="rgt-management"']
 )
+
+subdir('tests')

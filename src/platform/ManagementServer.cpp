@@ -13,6 +13,7 @@
 #include <RGT/Devkit/Subsystems/PsqlSubsystem.h>
 #include <RGT/Devkit/Subsystems/RedisSubsystem.h>
 #include <RGT/Devkit/Subsystems/RabbitMQSubsystem.h>
+#include <RGT/Devkit/ProjectName.h>
 
 #include <aws/core/Aws.h>
 
@@ -25,7 +26,7 @@ void ManagementServer::initialize(Poco::Util::Application & self)
 {
     try
     {
-        Poco::Util::JSONConfiguration::Ptr cfg = new Poco::Util::JSONConfiguration("rgt-management.config");
+        Poco::Util::JSONConfiguration::Ptr cfg = new Poco::Util::JSONConfiguration(RGT::Devkit::getConfigPath());
         self.config().add(cfg, PRIO_APPLICATION);
     }
     catch (const Poco::Exception & e) {

@@ -26,17 +26,21 @@ public:
 private:
     virtual void requestPreprocessing(Poco::Net::HTTPServerRequest & request) final;
 
-    virtual std::any extractPayloadFromRequest(Poco::Net::HTTPServerRequest & request) final;
+    virtual void extractPayloadFromRequest(Poco::Net::HTTPServerRequest & request) final;
 
-    virtual void requestProcessing(Poco::Net::HTTPServerRequest & request, Poco::Net::HTTPServerResponse & response) final;
+    virtual void requestProcessing
+    (
+        Poco::Net::HTTPServerRequest  & request, 
+        Poco::Net::HTTPServerResponse & response
+    ) final;
 
 private:
-    struct RequiredPayload
+    struct 
     {
         RGT::Devkit::JWTPayload tokenPayload;
 
         uint64_t raceId;
-    };
+    } requestPayload_;
 
     Poco::Data::SessionPool & sessionPool_;
     RedisClientObjectPool   & redisPool_;

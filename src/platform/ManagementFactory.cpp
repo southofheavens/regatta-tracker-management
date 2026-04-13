@@ -13,6 +13,8 @@
 #include <Handlers/StartRaceHandler.h>
 #include <Handlers/EndRaceHandler.h>
 
+#include <RGT/Devkit/ErrorHandler.h>
+
 namespace RGT::Management
 {
 
@@ -32,6 +34,12 @@ Poco::Net::HTTPRequestHandler * ManagementFactory::createRequestHandler(const Po
         else if (uri == "/end_race") {
             return new Handlers::EndRaceHandler(sessionPool_, redisPool_, s3Client_, amqpChannel_);
         }
+        else {
+            return new RGT::Devkit::ErrorHandler;
+        }
+    }
+    else {
+        return new RGT::Devkit::ErrorHandler;
     }
 }
 

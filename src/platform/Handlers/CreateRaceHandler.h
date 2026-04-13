@@ -1,5 +1,6 @@
 #pragma once
 
+#include <RGT/Devkit/Types.h>
 #include <RGT/Devkit/HTTPRequestHandler.h>
 
 #include <Poco/Data/SessionPool.h>
@@ -21,20 +22,24 @@ public:
 private:
     virtual void requestPreprocessing(Poco::Net::HTTPServerRequest & request) final;
 
-    virtual std::any extractPayloadFromRequest(Poco::Net::HTTPServerRequest & request) final;
+    virtual void extractPayloadFromRequest(Poco::Net::HTTPServerRequest & request) final;
 
-    virtual void requestProcessing(Poco::Net::HTTPServerRequest & request, Poco::Net::HTTPServerResponse & response) final;
+    virtual void requestProcessing
+    (
+        Poco::Net::HTTPServerRequest  & request, 
+        Poco::Net::HTTPServerResponse & response
+    ) final;
 
 private:
-    struct RequiredPayload
+    struct
     {
         RGT::Devkit::JWTPayload tokenPayload;
 
-        std::vector<uint64_t> participants;
-        std::vector<uint64_t> judges;
-    };
+        std::vector<Devkit::UserId> participants;
+        std::vector<Devkit::UserId> judges;
+    } requestPayload_;
 
-    Poco::Data::SessionPool          & sessionPool_;
+    Poco::Data::SessionPool & sessionPool_;
 };
 
 } // namespace RGT::Management::Handlers
