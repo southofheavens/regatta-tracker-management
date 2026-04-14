@@ -4,6 +4,7 @@
 #include <Poco/Redis/Command.h>
 
 #include <RGT/Devkit/General.h>
+#include <RGT/Devkit/RaceLookup.h>
 
 #include <Utils.h>
 
@@ -12,7 +13,7 @@ namespace
 
 using RedisClientObjectPool = Poco::ObjectPool<Poco::Redis::Client, Poco::Redis::Client::Ptr>;
 
-void createParticipations(RedisClientObjectPool & redisPool, const std::vector<uint64_t> & ids)
+void createParticipations(RedisClientObjectPool & redisPool, const std::vector<RGT::Devkit::UserId> & ids)
 {
     static std::string luaScript = RGT::Devkit::readLuaScript("lua_scripts/rpush_if_exists.lua");
 
@@ -29,15 +30,19 @@ void createParticipations(RedisClientObjectPool & redisPool, const std::vector<u
         << luaScript
         << std::to_string(static_cast<Poco::Int64>(ids.size()));
 
-    for (const uint64_t & id : ids) {
-        cmd << std::format("user_participation:{}", id);
+    for (RGT::Devkit::UserId id : ids) {
+        cmd << std::format("user_participation:{}", RGT::Devkit::mapUserIdToUint(id));
     }
     cmd << "init";
 
     [[maybe_unused]] Poco::Redis::Array reply = redisClient->execute<Poco::Redis::Array>(cmd);
 }
 
-bool isParticipationsExists(RedisClientObjectPool & redisPool, const std::vector<uint64_t> & participantsIds)
+bool isParticipationsExists
+(
+    RedisClientObjectPool & redisPool, 
+    const std::vector<RGT::Devkit::UserId> & participantsIds
+)
 {
     if (participantsIds.empty()) {
         return true; 
@@ -52,8 +57,8 @@ bool isParticipationsExists(RedisClientObjectPool & redisPool, const std::vector
     }
 
     Poco::Redis::Command cmd("EXISTS");
-    for (uint64_t id : participantsIds) {
-        cmd << std::format("user_participation:{}", id);
+    for (RGT::Devkit::UserId id : participantsIds) {
+        cmd << std::format("user_participation:{}", RGT::Devkit::mapUserIdToUint(id));
     }
 
     Poco::Int64 reply = redisClient->execute<Poco::Int64>(cmd);
@@ -61,7 +66,7 @@ bool isParticipationsExists(RedisClientObjectPool & redisPool, const std::vector
     return reply == participantsIds.size();
 }
 
-bool startTheRace(Poco::Data::Session & session, uint64_t raceId)
+bool startTheRace(Poco::Data::Session & session, RGT::Devkit::RaceId raceId)
 {
     Poco::Data::Statement stmt(session);
 
@@ -70,23 +75,29 @@ bool startTheRace(Poco::Data::Session & session, uint64_t raceId)
         "SET start_of_the_race = COALESCE(start_of_the_race, NOW()), "
             "status = 'In_progress' "
         "WHERE id = $1 AND status = 'Not_started';",
-        Poco::Data::Keywords::use(raceId);
+        Poco::Data::Keywords::bind(RGT::Devkit::mapRaceIdToUint(raceId));
 
     return stmt.execute() > 0; 
 }
 
-std::vector<uint64_t> getParticipantsOfRace(Poco::Data::Session & session, uint64_t raceId)
+// TODO добавить кэширование и перенести в devkit
+std::vector<RGT::Devkit::UserId> getParticipantsOfRace(Poco::Data::Session & session, RGT::Devkit::RaceId raceId)
 {
-    std::vector<uint64_t> participantsIds;
+    std::vector<uint64_t> rawParticipantsIds;
+    std::vector<RGT::Devkit::UserId> participantsIds;
+    participantsIds.reserve(rawParticipantsIds.size());
 
     session << 
         "SELECT user_id "
         "FROM participations "
         "WHERE race_id = $1 AND role = 'Participant';",
-        Poco::Data::Keywords::use(raceId),
-        Poco::Data::Keywords::into(participantsIds),
+        Poco::Data::Keywords::bind(RGT::Devkit::mapRaceIdToUint(raceId)),
+        Poco::Data::Keywords::into(rawParticipantsIds),
         Poco::Data::Keywords::now;
 
+    for (uint64_t rawId : rawParticipantsIds) {
+        participantsIds.push_back(RGT::Devkit::mapUintToUserId(rawId));
+    }
     return participantsIds;
 }
 
@@ -116,9 +127,12 @@ void StartRaceHandler::extractPayloadFromRequest(Poco::Net::HTTPServerRequest & 
         throw RGT::Devkit::RGTException("Expected race_id field", Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
     }
 
-    uint64_t raceId;
-    try {
-        raceId = dvRaceId.convert<uint64_t>();
+    uint64_t rawRaceId;
+    RGT::Devkit::RaceId raceId;
+    try 
+    {
+        rawRaceId = dvRaceId.convert<uint64_t>();
+        raceId = RGT::Devkit::mapUintToRaceId(rawRaceId);
     }
     catch (...) 
     {
@@ -132,26 +146,33 @@ void StartRaceHandler::extractPayloadFromRequest(Poco::Net::HTTPServerRequest & 
 
 void StartRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request, Poco::Net::HTTPServerResponse & response)
 {
-    if (requestPayload_.tokenPayload.role != "Judge") {
+    if (requestPayload_.tokenPayload.role != RGT::Devkit::UserRole::Judge) {
         throw RGT::Devkit::RGTException("Only Judge can start a race", Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
     }
 
     Poco::Data::Session session = sessionPool_.get();
+    Poco::Redis::PooledConnection pc(redisPool_, 500);
 
-    if (not RGT::Management::isRaceExists(session, requestPayload_.raceId))
+    if (not RGT::Devkit::isRaceExists(session, pc, requestPayload_.raceId))
     {
-        throw RGT::Devkit::RGTException(std::format("The race with id {} is not exists", requestPayload_.raceId), 
-            Poco::Net::HTTPResponse::HTTP_NOT_FOUND);
+        throw RGT::Devkit::RGTException
+        (
+            std::format
+            (
+                "The race with id {} is not exists", RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)
+            ), 
+            Poco::Net::HTTPResponse::HTTP_NOT_FOUND
+        );
     }
     
-    if (not RGT::Management::isParticipationExists(session, requestPayload_.raceId, requestPayload_.tokenPayload.sub))
+    if (not RGT::Devkit::isParticipationExists(session, pc, requestPayload_.raceId, requestPayload_.tokenPayload.sub))
     {
         throw RGT::Devkit::RGTException
         (
             std::format
             (
                 "The judge is not part of the judging panel for the race with ID {}",
-                requestPayload_.raceId
+                RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)
             ),
             Poco::Net::HTTPResponse::HTTP_FORBIDDEN
         );
@@ -160,18 +181,30 @@ void StartRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request,
     if (not startTheRace(session, requestPayload_.raceId))
     // Гонка уже не в статусе 'Not_started'
     {
-        if (RGT::Management::getRaceStatus(session, requestPayload_.raceId) == "Finished")
+        if (RGT::Devkit::getRaceStatus(session, pc, requestPayload_.raceId) == RGT::Devkit::RaceStatus::Finished)
         {
-            throw RGT::Devkit::RGTException(std::format("The race {} is already finished", requestPayload_.raceId), 
-                Poco::Net::HTTPResponse::HTTP_CONFLICT);   
+            throw RGT::Devkit::RGTException
+            (
+                std::format
+                (
+                    "The race {} is already finished", RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)
+                ), 
+                Poco::Net::HTTPResponse::HTTP_CONFLICT
+            );   
         }
 
-        std::vector<uint64_t> participantsIds = getParticipantsOfRace(session, requestPayload_.raceId);
+        std::vector<RGT::Devkit::UserId> participantsIds = getParticipantsOfRace(session, requestPayload_.raceId);
 
         if (isParticipationsExists(redisPool_, participantsIds))
         {
-            throw RGT::Devkit::RGTException(std::format("The race {} is already started", requestPayload_.raceId), 
-                Poco::Net::HTTPResponse::HTTP_CONFLICT); 
+            throw RGT::Devkit::RGTException
+            (
+                std::format
+                (
+                    "The race {} is already started", RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)
+                ), 
+                Poco::Net::HTTPResponse::HTTP_CONFLICT
+            ); 
         }
 
         session.close();
@@ -182,7 +215,7 @@ void StartRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request,
         HTTPRequestHandler::sendJsonResponse(response, "OK", "OK");
     }
 
-    std::vector<uint64_t> participantsIds = getParticipantsOfRace(session, requestPayload_.raceId);
+    std::vector<RGT::Devkit::UserId> participantsIds = getParticipantsOfRace(session, requestPayload_.raceId);
 
     session.close();
 

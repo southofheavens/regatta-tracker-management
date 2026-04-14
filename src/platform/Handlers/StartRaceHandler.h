@@ -7,8 +7,6 @@
 #include <Poco/ObjectPool.h>
 #include <Poco/Redis/Client.h>
 
-#include <any>
-
 namespace RGT::Management::Handlers
 {
 
@@ -39,7 +37,7 @@ private:
     {
         RGT::Devkit::JWTPayload tokenPayload;
 
-        uint64_t raceId;
+        RGT::Devkit::RaceId raceId;
     } requestPayload_;
 
     Poco::Data::SessionPool & sessionPool_;

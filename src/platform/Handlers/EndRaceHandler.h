@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RGT/Devkit/HTTPRequestHandler.h>
+#include <RGT/Devkit/Types.h>
 
 #include <Poco/Data/SessionPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
@@ -10,8 +11,6 @@
 #include <aws/s3/S3Client.h>
 
 #include <SimpleAmqpClient/Channel.h>
-
-#include <any>
 
 namespace RGT::Management::Handlers
 {
@@ -47,7 +46,7 @@ private:
     {
         RGT::Devkit::JWTPayload tokenPayload;
 
-        uint64_t raceId;
+        RGT::Devkit::RaceId raceId;
     } requestPayload_;
 
     Poco::Data::SessionPool & sessionPool_;

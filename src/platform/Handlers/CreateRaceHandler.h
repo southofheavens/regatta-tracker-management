@@ -6,8 +6,6 @@
 #include <Poco/Data/SessionPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
 
-#include <any>
-
 namespace RGT::Management::Handlers
 {
 

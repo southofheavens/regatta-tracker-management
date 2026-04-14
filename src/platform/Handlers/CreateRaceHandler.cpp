@@ -187,13 +187,12 @@ void CreateRaceHandler::extractPayloadFromRequest(Poco::Net::HTTPServerRequest &
 }
 
 void CreateRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request, Poco::Net::HTTPServerResponse & response)
-try
 {
     // Можно проверить, что в бд уже есть гонка с такими участниками, а поле
     // с началом времени не заполнено. в таком случае пользователю мы и вернем
     // айдишник этой гонки. + надо добавить колонку с примерным временем старта
 
-    if (requestPayload_.tokenPayload.role != "Judge") {
+    if (requestPayload_.tokenPayload.role != RGT::Devkit::UserRole::Judge) {
         throw RGT::Devkit::RGTException("Only judge can create a race", Poco::Net::HTTPResponse::HTTP_FORBIDDEN);
     }
 
@@ -255,14 +254,6 @@ try
     response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_CREATED);
     std::ostream & out = response.send();
     json.stringify(out);
-}
-catch (Poco::Exception & e)
-{
-    std::cerr << e.what() << " : " << e.displayText() << '\n';
-}
-catch (std::exception & e) 
-{
-    std::cerr << e.what() << std::endl;
 }
 
 } // namespace RGT::Management::Handlers
