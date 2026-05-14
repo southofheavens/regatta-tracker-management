@@ -73,32 +73,11 @@ bool startTheRace(Poco::Data::Session & session, RGT::Devkit::RaceId raceId)
     stmt << 
         "UPDATE races "
         "SET start_of_the_race = COALESCE(start_of_the_race, NOW()), "
-            "status = 'In_progress' "
-        "WHERE id = $1 AND status = 'Not_started';",
+            "status = 'in_progress' "
+        "WHERE id = $1 AND status = 'not_started';",
         Poco::Data::Keywords::bind(RGT::Devkit::mapRaceIdToUint(raceId));
 
     return stmt.execute() > 0; 
-}
-
-// TODO добавить кэширование и перенести в devkit
-std::vector<RGT::Devkit::UserId> getParticipantsOfRace(Poco::Data::Session & session, RGT::Devkit::RaceId raceId)
-{
-    std::vector<uint64_t> rawParticipantsIds;
-    std::vector<RGT::Devkit::UserId> participantsIds;
-    participantsIds.reserve(rawParticipantsIds.size());
-
-    session << 
-        "SELECT user_id "
-        "FROM participations "
-        "WHERE race_id = $1 AND role = 'Participant';",
-        Poco::Data::Keywords::bind(RGT::Devkit::mapRaceIdToUint(raceId)),
-        Poco::Data::Keywords::into(rawParticipantsIds),
-        Poco::Data::Keywords::now;
-
-    for (uint64_t rawId : rawParticipantsIds) {
-        participantsIds.push_back(RGT::Devkit::mapUintToUserId(rawId));
-    }
-    return participantsIds;
 }
 
 } // namespace
@@ -193,7 +172,7 @@ void StartRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request,
             );   
         }
 
-        std::vector<RGT::Devkit::UserId> participantsIds = getParticipantsOfRace(session, requestPayload_.raceId);
+        std::vector<Devkit::UserId> participantsIds = Devkit::getParticipantsOfRace(session, pc, requestPayload_.raceId);
 
         if (isParticipationsExists(redisPool_, participantsIds))
         {
@@ -215,7 +194,7 @@ void StartRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request,
         HTTPRequestHandler::sendJsonResponse(response, "OK", "OK");
     }
 
-    std::vector<RGT::Devkit::UserId> participantsIds = getParticipantsOfRace(session, requestPayload_.raceId);
+    std::vector<RGT::Devkit::UserId> participantsIds = Devkit::getParticipantsOfRace(session, pc, requestPayload_.raceId);
 
     session.close();
 
