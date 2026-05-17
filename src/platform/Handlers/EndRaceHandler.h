@@ -8,8 +8,6 @@
 #include <Poco/ObjectPool.h>
 #include <Poco/Redis/Client.h>
 
-#include <aws/s3/S3Client.h>
-
 #include <SimpleAmqpClient/Channel.h>
 
 namespace RGT::Management::Handlers
@@ -20,12 +18,14 @@ class EndRaceHandler : public RGT::Devkit::HTTPRequestHandler
 public:
     using RedisClientObjectPool = Poco::ObjectPool<Poco::Redis::Client, Poco::Redis::Client::Ptr>;
 
-    EndRaceHandler(Poco::Data::SessionPool & sessionPool, RedisClientObjectPool & redisPool, 
-        Aws::S3::S3Client & s3Client, 
-        AmqpClient::Channel & amqpChannel) 
+    EndRaceHandler
+    (
+        Poco::Data::SessionPool & sessionPool,
+        RedisClientObjectPool & redisPool,
+        AmqpClient::Channel & amqpChannel
+    )
         : sessionPool_{sessionPool}
         , redisPool_{redisPool}
-        , s3Client_{s3Client}
         , amqpChannel_{amqpChannel}
     {
     }
@@ -37,7 +37,7 @@ private:
 
     virtual void requestProcessing
     (
-        Poco::Net::HTTPServerRequest  & request, 
+        Poco::Net::HTTPServerRequest  & request,
         Poco::Net::HTTPServerResponse & response
     ) final;
 
@@ -51,7 +51,6 @@ private:
 
     Poco::Data::SessionPool & sessionPool_;
     RedisClientObjectPool   & redisPool_;
-    Aws::S3::S3Client       & s3Client_;
     AmqpClient::Channel     & amqpChannel_;
 };
 

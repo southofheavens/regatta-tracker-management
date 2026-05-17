@@ -9,13 +9,10 @@
 
 #include <RGT/Devkit/RGTException.h>
 #include <RGT/Devkit/General.h>
-#include <RGT/Devkit/Subsystems/S3Subsystem.h>
 #include <RGT/Devkit/Subsystems/PsqlSubsystem.h>
 #include <RGT/Devkit/Subsystems/RedisSubsystem.h>
 #include <RGT/Devkit/Subsystems/RabbitMQSubsystem.h>
 #include <RGT/Devkit/ProjectName.h>
-
-#include <aws/core/Aws.h>
 
 #include <Poco/Util/JSONConfiguration.h>
 
@@ -36,7 +33,6 @@ void ManagementServer::initialize(Poco::Util::Application & self)
     RGT::Devkit::readDotEnv();
 
     Poco::Util::Application::addSubsystem(new RGT::Devkit::Subsystems::PsqlSubsystem());
-    Poco::Util::Application::addSubsystem(new RGT::Devkit::Subsystems::S3Subsystem());
     Poco::Util::Application::addSubsystem(new RGT::Devkit::Subsystems::RedisSubsystem());
     Poco::Util::Application::addSubsystem(new RGT::Devkit::Subsystems::RabbitMQSubsystem());
 
@@ -53,7 +49,6 @@ int ManagementServer::main(const std::vector<std::string>&)
     Poco::Net::ServerSocket svs(cfg.getUInt16("server.port"));
 
     auto & psqlSubsystem = Poco::Util::Application::getSubsystem<Devkit::Subsystems::PsqlSubsystem>();
-    auto & s3Subsystem = Poco::Util::Application::getSubsystem<Devkit::Subsystems::S3Subsystem>();
     auto & redisSubsystem = Poco::Util::Application::getSubsystem<Devkit::Subsystems::RedisSubsystem>();
     auto & rabbitmqSubsystem = Poco::Util::Application::getSubsystem<Devkit::Subsystems::RabbitMQSubsystem>();
     
@@ -61,7 +56,7 @@ int ManagementServer::main(const std::vector<std::string>&)
     (
         new Management::ManagementFactory
         (
-            psqlSubsystem.getPool(), redisSubsystem.getPool(), s3Subsystem.getS3Client(), 
+            psqlSubsystem.getPool(), redisSubsystem.getPool(),
             rabbitmqSubsystem.getChannel(), cfg
         ), 
         svs, 

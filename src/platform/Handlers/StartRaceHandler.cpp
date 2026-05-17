@@ -19,9 +19,8 @@ void createParticipations(RedisClientObjectPool & redisPool, const std::vector<R
 
     Poco::Redis::PooledConnection pc(redisPool, 500);
     Poco::Redis::Client::Ptr redisClient = static_cast<Poco::Redis::Client::Ptr>(pc);
-    if (redisClient == nullptr) 
+    if (redisClient == nullptr)
     {
-        // TODO лог
         throw std::exception{};
     }
 
@@ -40,19 +39,18 @@ void createParticipations(RedisClientObjectPool & redisPool, const std::vector<R
 
 bool isParticipationsExists
 (
-    RedisClientObjectPool & redisPool, 
+    RedisClientObjectPool & redisPool,
     const std::vector<RGT::Devkit::UserId> & participantsIds
 )
 {
     if (participantsIds.empty()) {
-        return true; 
+        return true;
     }
 
     Poco::Redis::PooledConnection pc(redisPool, 500);
     Poco::Redis::Client::Ptr redisClient = static_cast<Poco::Redis::Client::Ptr>(pc);
-    if (redisClient == nullptr) 
+    if (redisClient == nullptr)
     {
-        // TODO лог
         throw std::exception{};
     }
 
@@ -62,7 +60,7 @@ bool isParticipationsExists
     }
 
     Poco::Int64 reply = redisClient->execute<Poco::Int64>(cmd);
-    
+
     return reply == participantsIds.size();
 }
 
@@ -70,19 +68,17 @@ bool startTheRace(Poco::Data::Session & session, RGT::Devkit::RaceId raceId)
 {
     Poco::Data::Statement stmt(session);
 
-    stmt << 
+    stmt <<
         "UPDATE races "
         "SET start_of_the_race = COALESCE(start_of_the_race, NOW()), "
             "status = 'in_progress' "
         "WHERE id = $1 AND status = 'not_started';",
         Poco::Data::Keywords::bind(RGT::Devkit::mapRaceIdToUint(raceId));
 
-    return stmt.execute() > 0; 
+    return stmt.execute() > 0;
 }
 
 } // namespace
-
-/* - */
 
 namespace RGT::Management::Handlers
 {
@@ -108,14 +104,14 @@ void StartRaceHandler::extractPayloadFromRequest(Poco::Net::HTTPServerRequest & 
 
     uint64_t rawRaceId;
     RGT::Devkit::RaceId raceId;
-    try 
+    try
     {
         rawRaceId = dvRaceId.convert<uint64_t>();
         raceId = RGT::Devkit::mapUintToRaceId(rawRaceId);
     }
-    catch (...) 
+    catch (...)
     {
-        throw RGT::Devkit::RGTException("The value for the key \"race_id\" must be of the unsigned integer type", 
+        throw RGT::Devkit::RGTException("The value for the key \"race_id\" must be of the unsigned integer type",
             Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);
     }
 
@@ -136,40 +132,33 @@ void StartRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request,
     {
         throw RGT::Devkit::RGTException
         (
-            std::format
-            (
-                "The race with id {} is not exists", RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)
-            ), 
+            std::format(
+                "The race with id {} is not exists", RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)),
             Poco::Net::HTTPResponse::HTTP_NOT_FOUND
         );
     }
-    
+
     if (not RGT::Devkit::isParticipationExists(session, pc, requestPayload_.raceId, requestPayload_.tokenPayload.sub))
     {
         throw RGT::Devkit::RGTException
         (
-            std::format
-            (
+            std::format(
                 "The judge is not part of the judging panel for the race with ID {}",
-                RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)
-            ),
+                RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)),
             Poco::Net::HTTPResponse::HTTP_FORBIDDEN
         );
-    } 
-    
+    }
+
     if (not startTheRace(session, requestPayload_.raceId))
-    // Гонка уже не в статусе 'Not_started'
     {
         if (RGT::Devkit::getRaceStatus(session, pc, requestPayload_.raceId) == RGT::Devkit::RaceStatus::Finished)
         {
             throw RGT::Devkit::RGTException
             (
-                std::format
-                (
-                    "The race {} is already finished", RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)
-                ), 
+                std::format(
+                    "The race {} is already finished", RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)),
                 Poco::Net::HTTPResponse::HTTP_CONFLICT
-            );   
+            );
         }
 
         std::vector<Devkit::UserId> participantsIds = Devkit::getParticipantsOfRace(session, pc, requestPayload_.raceId);
@@ -178,27 +167,19 @@ void StartRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request,
         {
             throw RGT::Devkit::RGTException
             (
-                std::format
-                (
-                    "The race {} is already started", RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)
-                ), 
+                std::format(
+                    "The race {} is already started", RGT::Devkit::mapRaceIdToUint(requestPayload_.raceId)),
                 Poco::Net::HTTPResponse::HTTP_CONFLICT
-            ); 
+            );
         }
 
-        session.close();
-
-        // Создаём в Redis ключи user_participation:{user_id}
         createParticipations(redisPool_, participantsIds);
-
         HTTPRequestHandler::sendJsonResponse(response, "OK", "OK");
+        return;
     }
 
     std::vector<RGT::Devkit::UserId> participantsIds = Devkit::getParticipantsOfRace(session, pc, requestPayload_.raceId);
 
-    session.close();
-
-    // Создаём в Redis ключи user_participation:{user_id}
     createParticipations(redisPool_, participantsIds);
 
     HTTPRequestHandler::sendJsonResponse(response, "OK", "OK");

@@ -252,6 +252,7 @@ void CreateRaceHandler::requestProcessing(Poco::Net::HTTPServerRequest & request
     json.set("id", rawRaceId);
 
     response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_CREATED);
+    response.setContentType("application/json");
     std::ostream & out = response.send();
     json.stringify(out);
 }
